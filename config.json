@@ -1,0 +1,25 @@
+{
+  "led": {
+    "count": 30,
+    "pin": 18,
+    "freq_hz": 800000,
+    "dma": 10,
+    "invert": false,
+    "brightness": 128,
+    "channel": 0
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false
+  },
+  "colors": {
+    "red":    [255,   0,   0],
+    "orange": [255, 100,   0],
+    "green":  [  0, 255,   0],
+    "blue":   [  0,   0, 255],
+    "white":  [255, 255, 255],
+    "yellow": [255, 200,   0],
+    "off":    [  0,   0,   0]
+  }
+}

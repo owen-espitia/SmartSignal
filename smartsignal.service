@@ -1,0 +1,13 @@
+[Unit]
+Description=SmartSignal HTTP Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/smartsignal/main.py
+WorkingDirectory=/home/pi/smartsignal
+Restart=always
+RestartSec=5
+User=pi
+
+[Install]
+WantedBy=multi-user.target
