@@ -179,7 +179,7 @@ python3 main.py
 Default server:
 
 ```
-http://<pi-ip>:5000
+http://<espitia_dev-ip>:5000
 ```
 
 ***
@@ -247,7 +247,7 @@ GET /health
 ## 🧪 Testing the System
 
 ```bash
-curl -X POST http://<pi-ip>:5000/alert \
+curl -X POST http://<espitia_dev-ip>:5000/alert \
 -H "Content-Type: application/json" \
 -d '{"color":"red","pattern":"blink"}'
 ```
@@ -266,10 +266,10 @@ Description=SmartSignal HTTP Server
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/smartsignal/main.py
-WorkingDirectory=/home/pi/smartsignal
+ExecStart=/home/espitia_dev/smartsignal/.venv/bin/python /home/espitia_dev/smartsignal/main.py
+WorkingDirectory=/home/espitia_dev/smartsignal
 Restart=always
-User=pi
+User=espitia_dev
 
 [Install]
 WantedBy=multi-user.target

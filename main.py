@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 
 from led_controller import LEDController
 from patterns import PatternRunner
@@ -34,6 +34,11 @@ def resolve_color(name: str) -> tuple[int, int, int]:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
 
 @app.route("/health", methods=["GET"])
 def health():

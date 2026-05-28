@@ -38,16 +38,20 @@ except ImportError:
             logger.debug("[MOCK] setBrightness(%d)", brightness)
 
 
+MAX_BRIGHTNESS = 51  # 20% of 255 — hard ceiling enforced regardless of config
+
+
 class LEDController:
     def __init__(self, config: dict):
         cfg = config["led"]
+        brightness = min(cfg["brightness"], MAX_BRIGHTNESS)
         self.strip = PixelStrip(
             cfg["count"],
             cfg["pin"],
             cfg["freq_hz"],
             cfg["dma"],
             cfg["invert"],
-            cfg["brightness"],
+            brightness,
             cfg["channel"],
         )
         self.strip.begin()

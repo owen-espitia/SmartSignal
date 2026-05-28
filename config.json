@@ -1,11 +1,11 @@
 {
   "led": {
-    "count": 30,
+    "count": 3,
     "pin": 18,
     "freq_hz": 800000,
     "dma": 10,
     "invert": false,
-    "brightness": 128,
+    "brightness": 25,
     "channel": 0
   },
   "server": {
