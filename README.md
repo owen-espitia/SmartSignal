@@ -47,32 +47,33 @@ All controlled via a simple **RESTful HTTP API**, with no message broker require
 
 ## 🎨 LED Alert System
 
-| Color     | Meaning                    | Pattern Example   |
-| --------- | -------------------------- | ----------------- |
-| 🔴 Red    | Critical alert (intrusion) | Blinking / strobe |
-| 🟠 Orange | Warning (PPE violation)    | Pulse             |
-| 🟢 Green  | Normal operation           | Solid             |
-| 🔵 Blue   | System diagnostics         | Slow wave         |
+| Color     | Meaning                        | Pattern Example   |
+| --------- | ------------------------------ | ----------------- |
+| 🔴 Red    | Person detected without a hat  | Blinking          |
+| 🟡 Yellow | Person detected (hat worn)     | Pulse             |
+| 🟢 Green  | Normal operation               | Solid             |
+| 🔵 Blue   | System diagnostics             | Slow wave         |
 
 ***
 
 ## 👁️ Computer Vision
 
-SmartSignal can drive a connected camera to detect **people** and **faces** in real time, automatically triggering the appropriate LED alert when something is detected.
+SmartSignal drives a connected camera to detect **people** and determine whether they are wearing a hat, automatically triggering the appropriate LED alert.
 
-| Detection | LED Response         |
-| --------- | -------------------- |
-| Face      | 🔴 Red blink         |
-| Person    | 🟠 Orange pulse      |
-| Nothing   | LEDs off             |
+| Detection              | LED Response         |
+| ---------------------- | -------------------- |
+| Person — no hat        | 🔴 Red blink         |
+| Person — hat worn      | 🟡 Yellow pulse      |
+| Nothing detected       | LEDs off             |
 
 ### How it works
 
-* **Face detection** — OpenCV Haar cascade classifier (`haarcascade_frontalface_default.xml`), bundled with OpenCV, no extra downloads required
 * **Person detection** — OpenCV HOG + SVM descriptor (`HOGDescriptor_getDefaultPeopleDetector()`)
+* **Hat detection** — for each detected person, the top 35% of their bounding box (head region) is cropped and run through an OpenCV Haar face cascade. If the face sits in the top 30% of that crop (minimal clearance above), there is no room for a hat — the person is flagged as `no_hat`. No additional model downloads required.
 * Detection runs every 3rd frame (configurable) to stay responsive on a Raspberry Pi
 * State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections
-* An annotated **MJPEG live stream** (bounding boxes + state label) is served at `/vision/stream` and embedded directly in the web UI
+* Bounding boxes are annotated `"person"` (yellow) or `"no hat!"` (red) per-person in the live feed
+* An annotated **MJPEG live stream** is served at `/vision/stream` and embedded directly in the web UI
 
 ### Configuration (`config.json`)
 
@@ -96,7 +97,7 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 * 🌐 HTTP-based control (REST API)
 * 🎛️ Addressable LED strip (WS2812 / NeoPixel)
 * 🎨 Per-pixel color and animation support
-* 👁️ Computer vision: real-time face and person detection via OpenCV
+* 👁️ Computer vision: real-time person detection and hat compliance checking via OpenCV
 * 📹 Live annotated MJPEG camera stream in the web UI
 * ⚡ Runs automatically at boot using `systemd`
 * 🔁 Auto-restarts on failure
@@ -151,7 +152,7 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 ├── main.py                # HTTP server entry point
 ├── led_controller.py      # WS2812 LED control logic
 ├── patterns.py            # Animation patterns (blink, pulse, wave)
-├── vision.py              # Computer vision: face and person detection
+├── vision.py              # Computer vision: person detection and hat compliance
 ├── config.json            # Configurable settings
 ├── requirements.txt       # Dependencies
 ├── smartsignal.service    # systemd service file
@@ -311,7 +312,7 @@ Returns:
 {
   "available": true,
   "running": true,
-  "state": "face"
+  "state": "no_hat"
 }
 ```
 
