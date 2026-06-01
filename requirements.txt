@@ -1,4 +1,5 @@
 flask>=3.0.0
+opencv-python-headless>=4.8.0
 
 # Raspberry Pi hardware libraries — install only on the Pi
 # rpi_ws281x>=5.0.0

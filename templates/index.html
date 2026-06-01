@@ -296,6 +296,32 @@
     </div>
   </div>
 
+  <!-- Vision card -->
+  <div class="card">
+    <div class="card-title">Computer Vision</div>
+
+    <div id="vision-placeholder" style="height:180px; display:flex; align-items:center; justify-content:center; background:var(--bg); border:1px solid var(--border); border-radius:6px; margin-bottom:16px; color:var(--muted); font-size:13px;">
+      Camera off
+    </div>
+
+    <div id="vision-feed-wrap" style="display:none; margin-bottom:16px;">
+      <img id="vision-feed" src="" alt="Camera feed"
+           style="width:100%; border-radius:6px; border:1px solid var(--border); display:block;" />
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="font-size:12px; color:var(--muted);">Detection:</span>
+      <span id="vision-state-badge"
+            style="font-size:12px; font-weight:600; padding:3px 12px; border-radius:12px; background:var(--border); color:var(--muted); transition:background 0.3s, color 0.3s;">
+        idle
+      </span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="vision-toggle-btn">Start Vision</button>
+    </div>
+  </div>
+
   <!-- Off -->
   <div class="card">
     <div class="card-title">Power</div>
@@ -460,6 +486,67 @@
     try {
       await post("/off", {});
       toast("LEDs off");
+    } catch { toast("Request failed", false); }
+  };
+
+  // --- Vision ---
+  const BADGE_STYLES = {
+    idle:   { bg: "var(--border)", color: "var(--muted)" },
+    person: { bg: "#166534",       color: "#4ade80" },
+    face:   { bg: "#7f1d1d",       color: "#f87171" },
+  };
+
+  let visionRunning   = false;
+  let visionPollTimer = null;
+
+  const visionPlaceholder = document.getElementById("vision-placeholder");
+  const visionFeedWrap    = document.getElementById("vision-feed-wrap");
+  const visionFeed        = document.getElementById("vision-feed");
+  const visionBadge       = document.getElementById("vision-state-badge");
+  const visionToggleBtn   = document.getElementById("vision-toggle-btn");
+
+  function setVisionBadge(state) {
+    const s = BADGE_STYLES[state] || BADGE_STYLES.idle;
+    visionBadge.textContent        = state;
+    visionBadge.style.background   = s.bg;
+    visionBadge.style.color        = s.color;
+  }
+
+  function setVisionUI(running) {
+    visionRunning = running;
+    visionToggleBtn.textContent = running ? "Stop Vision" : "Start Vision";
+    if (running) {
+      visionFeed.src                  = "/vision/stream";
+      visionFeedWrap.style.display    = "block";
+      visionPlaceholder.style.display = "none";
+      visionPollTimer = setInterval(async () => {
+        try {
+          const d = await (await fetch("/vision/status")).json();
+          setVisionBadge(d.state);
+          if (!d.running) setVisionUI(false);
+        } catch {}
+      }, 1000);
+    } else {
+      visionFeed.src                  = "";
+      visionFeedWrap.style.display    = "none";
+      visionPlaceholder.style.display = "flex";
+      clearInterval(visionPollTimer);
+      setVisionBadge("idle");
+    }
+  }
+
+  visionToggleBtn.onclick = async () => {
+    try {
+      if (!visionRunning) {
+        const d = await post("/vision/start", {});
+        if (d.error) { toast(d.error, false); return; }
+        setVisionUI(true);
+        toast("Vision started");
+      } else {
+        await post("/vision/stop", {});
+        setVisionUI(false);
+        toast("Vision stopped");
+      }
     } catch { toast("Request failed", false); }
   };
 </script>
