@@ -186,41 +186,121 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/smartsignal.git
-cd smartsignal
+git clone https://github.com/owen-espitia/SmartSignal.git
+cd SmartSignal
 ```
 
 ***
 
-### 2. Install Dependencies
+### 2. Raspberry Pi — Server Setup
+
+Install system dependencies and create a virtual environment:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip
-pip3 install -r requirements.txt
+sudo apt install python3 python3-pip python3-venv
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Example `requirements.txt`:
+Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+To enable hardware LED control on the Pi, uncomment the `rpi_ws281x` line in `requirements.txt` before installing:
 
 ```
-flask
-rpi_ws281x
-adafruit-circuitpython-neopixel
+# rpi_ws281x>=5.0.0
 ```
 
 ***
 
-### 3. Run the Application
+### 3. Run the Pi Server
 
 ```bash
-python3 main.py
+source .venv/bin/activate
+sudo .venv/bin/python main.py
 ```
 
-Default server:
+> `sudo` is required for GPIO access. The server starts at `http://<pi-ip>:5000`.
+
+Open the web UI in a browser to control alerts manually:
 
 ```
-http://<espitia_dev-ip>:5000
+http://<pi-ip>:5000
 ```
+
+***
+
+### 4. Run as a Service (auto-start on boot)
+
+Copy the service file and enable it:
+
+```bash
+sudo cp smartsignal.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable smartsignal
+sudo systemctl start smartsignal
+```
+
+Check status:
+
+```bash
+sudo systemctl status smartsignal
+```
+
+***
+
+### 5. Laptop Client — Hat Detection
+
+The laptop client runs person and hat detection on your local webcam and forwards alerts to the Pi over HTTP.
+
+Install client dependencies (on your laptop, not the Pi):
+
+```bash
+pip install -r requirements-client.txt
+```
+
+Run the client, pointing it at your Pi:
+
+```bash
+python client.py --pi http://<pi-ip>:5000
+```
+
+Optional flags:
+
+```
+--pi      Base URL of the Pi server (default: http://smartsignal.local:5000)
+--camera  Local camera index to use   (default: 0)
+```
+
+A camera preview window will open. Press **Q** to quit — the LEDs will be cleared automatically on exit.
+
+***
+
+### 6. Enable Vision on the Pi (optional)
+
+If a camera is attached directly to the Pi, you can start vision detection via the API:
+
+```bash
+curl -X POST http://<pi-ip>:5000/vision/start
+```
+
+View the live annotated stream in a browser:
+
+```
+http://<pi-ip>:5000/vision/stream
+```
+
+Stop detection:
+
+```bash
+curl -X POST http://<pi-ip>:5000/vision/stop
+```
+
+Set `"auto_alert": false` in `config.json` to watch the stream without triggering the LEDs.
 
 ***
 
