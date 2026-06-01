@@ -56,11 +56,48 @@ All controlled via a simple **RESTful HTTP API**, with no message broker require
 
 ***
 
+## 👁️ Computer Vision
+
+SmartSignal can drive a connected camera to detect **people** and **faces** in real time, automatically triggering the appropriate LED alert when something is detected.
+
+| Detection | LED Response         |
+| --------- | -------------------- |
+| Face      | 🔴 Red blink         |
+| Person    | 🟠 Orange pulse      |
+| Nothing   | LEDs off             |
+
+### How it works
+
+* **Face detection** — OpenCV Haar cascade classifier (`haarcascade_frontalface_default.xml`), bundled with OpenCV, no extra downloads required
+* **Person detection** — OpenCV HOG + SVM descriptor (`HOGDescriptor_getDefaultPeopleDetector()`)
+* Detection runs every 3rd frame (configurable) to stay responsive on a Raspberry Pi
+* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections
+* An annotated **MJPEG live stream** (bounding boxes + state label) is served at `/vision/stream` and embedded directly in the web UI
+
+### Configuration (`config.json`)
+
+```json
+"vision": {
+  "camera_index": 0,
+  "width": 640,
+  "height": 480,
+  "detect_every_n_frames": 3,
+  "debounce_frames": 5,
+  "auto_alert": true
+}
+```
+
+Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs.
+
+***
+
 ## 🚀 Key Features
 
 * 🌐 HTTP-based control (REST API)
 * 🎛️ Addressable LED strip (WS2812 / NeoPixel)
 * 🎨 Per-pixel color and animation support
+* 👁️ Computer vision: real-time face and person detection via OpenCV
+* 📹 Live annotated MJPEG camera stream in the web UI
 * ⚡ Runs automatically at boot using `systemd`
 * 🔁 Auto-restarts on failure
 * 🧪 Easy testing via browser, Postman, or curl
@@ -100,8 +137,9 @@ All controlled via a simple **RESTful HTTP API**, with no message broker require
 ### Software
 
 * Python 3
-* Flask or FastAPI (HTTP server)
+* Flask (HTTP server)
 * `rpi_ws281x` or `neopixel` library
+* OpenCV (`opencv-python-headless`) — face and person detection
 * systemd (service management)
 
 ***
@@ -112,10 +150,11 @@ All controlled via a simple **RESTful HTTP API**, with no message broker require
 .
 ├── main.py                # HTTP server entry point
 ├── led_controller.py      # WS2812 LED control logic
-├── patterns.py           # Animation patterns (blink, pulse, wave)
-├── config.json           # Configurable settings
-├── requirements.txt      # Dependencies
-├── smartsignal.service   # systemd service file
+├── patterns.py            # Animation patterns (blink, pulse, wave)
+├── vision.py              # Computer vision: face and person detection
+├── config.json            # Configurable settings
+├── requirements.txt       # Dependencies
+├── smartsignal.service    # systemd service file
 └── README.md
 ```
 
@@ -244,6 +283,50 @@ GET /health
 
 ***
 
+### ✅ Start Computer Vision
+
+```http
+POST /vision/start
+```
+
+***
+
+### ✅ Stop Computer Vision
+
+```http
+POST /vision/stop
+```
+
+***
+
+### ✅ Vision Status
+
+```http
+GET /vision/status
+```
+
+Returns:
+
+```json
+{
+  "available": true,
+  "running": true,
+  "state": "face"
+}
+```
+
+***
+
+### ✅ Live Camera Stream (MJPEG)
+
+```http
+GET /vision/stream
+```
+
+Open directly in a browser or embed as an `<img>` tag. Streams annotated frames with bounding boxes at the camera's native framerate.
+
+***
+
 ## 🧪 Testing the System
 
 ```bash
@@ -322,6 +405,8 @@ sudo systemctl start smartsignal
 * Secure API (authentication + HTTPS)
 * Remote config updates
 * Multi-device synchronization
+* More advanced CV models (YOLO, MediaPipe) for improved detection accuracy
+* Detection logging and event history
 
 ***
 
