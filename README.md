@@ -1,6 +1,8 @@
 ***
 
-# SmartSignal: IoT LED Status Indicator for Mobile Surveillance Units
+# 📡 SmartSignal (HTTP Edition)
+
+### IoT LED Alert System for Mobile Surveillance Units
 
 **Author:** Owen Espitia  
 **Project Type:** IoT / Embedded Systems / Raspberry Pi  
@@ -8,113 +10,183 @@
 
 ***
 
-## Overview
+## 📖 Overview
 
-SmartSignal is a compact, low-cost IoT device designed to provide real-time, highly visible alerts for Mobile Surveillance Units (MSUs). Instead of relying on mobile apps and push notifications, SmartSignal uses color-coded LED signals that are immediately visible to anyone on-site.
+SmartSignal is a compact, low-cost IoT device designed to provide real-time, highly visible alerts for Mobile Surveillance Units (MSUs).
 
-The system integrates with MSU infrastructure using MQTT over cellular (LTE/4G), enabling fast and reliable event notifications without requiring phones or user interaction.
+Instead of relying on mobile apps and push notifications, SmartSignal uses a **WS2812 addressable LED strip** controlled via HTTP requests, enabling dynamic, highly visible alert patterns.
 
-***
-
-## The Problem
-
-Current MSU alert systems depend heavily on mobile devices and applications, which introduces several issues:
-
-*   Alerts are frequently missed or delayed
-*   Notification fatigue reduces responsiveness
-*   Teams rely on multiple platforms and devices
-*   System costs can exceed $50,000–$500,000
+The system runs a lightweight HTTP server on a Raspberry Pi, allowing external systems to trigger alerts directly over a network.
 
 ***
 
-## The Solution
+## 🚨 The Problem
 
-SmartSignal provides a physical, always-visible alert system mounted directly on the surveillance unit.
+Modern MSU alert systems rely heavily on mobile applications and notifications, which introduces several critical issues:
 
-LED status indicators communicate system state clearly:
-
-*   Red — Critical alert (intrusion)
-*   Orange — Warning (PPE violation)
-*   Green — Normal operation
-*   Blue — System diagnostics
-
-This approach eliminates reliance on apps and ensures all personnel can see alerts immediately.
+* Alerts are frequently missed or delayed
+* Notification fatigue reduces responsiveness
+* Teams must monitor multiple devices and platforms
+* High system costs ($50,000–$500,000 for full deployments)
 
 ***
 
-## Key Features
+## ✅ The Solution
 
-*   MQTT-based communication model
-*   LTE/4G connectivity independent of Wi-Fi
-*   RGB LED alert system with multiple patterns (solid, blink, pulse)
-*   Configurable event-to-color mappings
-*   Optional web dashboard for testing and configuration
-*   Automatic reconnection and resilience to connectivity issues
-*   Local logging for monitoring and debugging
+SmartSignal replaces app-based alerts with a **physical, always-visible signaling system** mounted directly on the surveillance unit.
+
+Using a **WS2812 LED strip**, SmartSignal can display:
+
+* Solid colors for system states
+* Blinking alerts for critical events
+* Animated patterns for diagnostics or warnings
+
+All controlled via a simple **RESTful HTTP API**, with no message broker required.
 
 ***
 
-## Technology Stack
+## 🎨 LED Alert System
+
+| Color     | Meaning                    | Pattern Example   |
+| --------- | -------------------------- | ----------------- |
+| 🔴 Red    | Critical alert (intrusion) | Blinking / strobe |
+| 🟠 Orange | Warning (PPE violation)    | Pulse             |
+| 🟢 Green  | Normal operation           | Solid             |
+| 🔵 Blue   | System diagnostics         | Slow wave         |
+
+***
+
+## 👁️ Computer Vision
+
+SmartSignal can drive a connected camera to detect **people** and **faces** in real time, automatically triggering the appropriate LED alert when something is detected.
+
+| Detection | LED Response         |
+| --------- | -------------------- |
+| Face      | 🔴 Red blink         |
+| Person    | 🟠 Orange pulse      |
+| Nothing   | LEDs off             |
+
+### How it works
+
+* **Face detection** — OpenCV Haar cascade classifier (`haarcascade_frontalface_default.xml`), bundled with OpenCV, no extra downloads required
+* **Person detection** — OpenCV HOG + SVM descriptor (`HOGDescriptor_getDefaultPeopleDetector()`)
+* Detection runs every 3rd frame (configurable) to stay responsive on a Raspberry Pi
+* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections
+* An annotated **MJPEG live stream** (bounding boxes + state label) is served at `/vision/stream` and embedded directly in the web UI
+
+### Configuration (`config.json`)
+
+```json
+"vision": {
+  "camera_index": 0,
+  "width": 640,
+  "height": 480,
+  "detect_every_n_frames": 3,
+  "debounce_frames": 5,
+  "auto_alert": true
+}
+```
+
+Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs.
+
+***
+
+## 🚀 Key Features
+
+* 🌐 HTTP-based control (REST API)
+* 🎛️ Addressable LED strip (WS2812 / NeoPixel)
+* 🎨 Per-pixel color and animation support
+* 👁️ Computer vision: real-time face and person detection via OpenCV
+* 📹 Live annotated MJPEG camera stream in the web UI
+* ⚡ Runs automatically at boot using `systemd`
+* 🔁 Auto-restarts on failure
+* 🧪 Easy testing via browser, Postman, or curl
+* 🛠 Configurable alert patterns and colors
+* 📜 Local logging for debugging and monitoring
+
+***
+
+## 🏗️ System Architecture
+
+```
++-------------------+       HTTP Request       +----------------------+
+|   MSU System      |  ─────────────────────▶  |  Raspberry Pi        |
+| (or Test Client)  |                          |  SmartSignal Server  |
++-------------------+                          +----------------------+
+                                                       │
+                                                       ▼
+                                            WS2812 LED Strip
+                                            (GPIO Data Pin)
+```
+
+***
+
+## 🧰 Technology Stack
 
 ### Hardware
 
-*   Raspberry Pi (4B or Zero 2W)
-*   LTE/4G cellular modem
-*   RGB LED array
-*   GPIO expansion board
-*   Weatherproof enclosure (IP65 or better)
+* Raspberry Pi 4 (or Pi Zero 2W)
+* WS2812 / NeoPixel LED strip
+* External 5V power supply (recommended)
+* Logic level shifter (optional but recommended)
+* 330Ω resistor (data line protection)
+* 1000µF capacitor (power stability)
+
+***
 
 ### Software
 
-*   Python 3
-*   Paho MQTT client
-*   gpiozero or RPi.GPIO
-*   Flask or FastAPI (optional)
-*   Raspberry Pi OS
-
-### Communication
-
-*   MQTT protocol
-*   MQTT broker (Mosquitto, AWS IoT, or similar)
+* Python 3
+* Flask (HTTP server)
+* `rpi_ws281x` or `neopixel` library
+* OpenCV (`opencv-python-headless`) — face and person detection
+* systemd (service management)
 
 ***
 
-## How It Works
+## 📂 Project Structure
 
-1.  Event Detection  
-    An MSU detects an event such as an intrusion or safety violation.
-
-2.  MQTT Event Published
-    ```json
-    {
-      "eventType": "intrusion",
-      "severity": "high"
-    }
-    ```
-
-3.  Command Sent to Device
-    ```json
-    {
-      "action": "displayAlert",
-      "color": "red",
-      "pattern": "blink",
-      "duration": 60
-    }
-    ```
-
-4.  Device Response
-    *   The Raspberry Pi receives the MQTT message
-    *   The LED array displays the corresponding alert
+```
+.
+├── main.py                # HTTP server entry point
+├── led_controller.py      # WS2812 LED control logic
+├── patterns.py            # Animation patterns (blink, pulse, wave)
+├── vision.py              # Computer vision: face and person detection
+├── config.json            # Configurable settings
+├── requirements.txt       # Dependencies
+├── smartsignal.service    # systemd service file
+└── README.md
+```
 
 ***
 
-## Getting Started
+## ⚙️ Hardware Setup
 
-### 1. Set Up Raspberry Pi
+### Basic Wiring
+
+| Component   | Connection               |
+| ----------- | ------------------------ |
+| LED Data In | GPIO18 (Pin 12)          |
+| Power (5V)  | External 5V power supply |
+| Ground      | Shared with Raspberry Pi |
+
+### Recommended Additions
+
+* **330Ω resistor** between GPIO and data line
+* **1000µF capacitor** across power and ground
+* **Logic level shifter** (3.3V → 5V)
+
+⚠️ WS2812 strips are sensitive to power spikes—proper wiring is important.
+
+***
+
+## ⚙️ Getting Started
+
+### 1. Clone the Repository
 
 ```bash
-sudo apt update
-sudo apt install python3 python3-pip
+git clone https://github.com/your-username/smartsignal.git
+cd smartsignal
 ```
 
 ***
@@ -122,135 +194,260 @@ sudo apt install python3 python3-pip
 ### 2. Install Dependencies
 
 ```bash
-pip3 install paho-mqtt gpiozero flask
+sudo apt update
+sudo apt install python3 python3-pip
+pip3 install -r requirements.txt
+```
+
+Example `requirements.txt`:
+
+```
+flask
+rpi_ws281x
+adafruit-circuitpython-neopixel
 ```
 
 ***
 
-### 3. Configure MQTT
-
-Example configuration file:
-
-```json
-{
-  "broker": "your-broker-ip",
-  "port": 1883,
-  "topic": "msu/unit-42/command"
-}
-```
-
-***
-
-### 4. Run the Application
+### 3. Run the Application
 
 ```bash
 python3 main.py
 ```
 
-***
+Default server:
 
-### 5. Send a Test Command
-
-From your laptop:
-
-```bash
-ssh pi@<pi-ip> "mosquitto_pub -t msu/unit-42/command -m '{\"color\":\"red\",\"pattern\":\"blink\"}'"
+```
+http://<espitia_dev-ip>:5000
 ```
 
 ***
 
-## Example Use Case
+## 🌐 API Endpoints
 
-*   A worker enters a restricted area
-*   The MSU detects the event
-*   SmartSignal displays a red alert
-*   All nearby personnel see the alert immediately
+### ✅ Trigger Alert
 
-***
+```http
+POST /alert
+```
 
-## Project Structure (Example)
+#### Request Body:
 
-    SmartSignal/
-    │── main.py
-    │── mqtt_client.py
-    │── led_controller.py
-    │── config.json
-    │── dashboard/
-    │   └── app.py
-    │── logs/
-    │── docs/
+```json
+{
+  "color": "red",
+  "pattern": "blink",
+  "duration": 60
+}
+```
 
 ***
 
-## Challenges and Considerations
+### ✅ Custom RGB
 
-*   Cellular connectivity variability
-*   Power efficiency in continuous operation
-*   MQTT latency under varying network conditions
-*   Outdoor durability and environmental exposure
-*   Hardware reliability over time
+```http
+POST /rgb
+```
 
-***
-
-## Roadmap
-
-### Minimum Viable Product
-
-*   MQTT communication
-*   LED control system
-*   Local configuration file
-*   Basic web dashboard
-
-### Future Enhancements
-
-*   Remote configuration updates via MQTT
-*   Device health monitoring
-*   Failover broker support
-*   TLS encryption and authentication
-*   Mobile-friendly dashboard
+```json
+{
+  "r": 255,
+  "g": 50,
+  "b": 0
+}
+```
 
 ***
 
-## Development Timeline
+### ✅ Animation Control (Advanced)
 
-| Week | Milestone                            |
-| ---- | ------------------------------------ |
-| 1    | Hardware setup and GPIO testing      |
-| 2    | MQTT integration and LED control     |
-| 3    | Dashboard implementation and testing |
-| 4    | Documentation and final demo         |
+```http
+POST /pattern
+```
 
-***
-
-## Key Differentiators
-
-*   Low cost compared to proprietary systems
-*   Immediate, visible alerts without user interaction
-*   Open architecture using standard protocols
-*   Real-time event response
-*   No vendor lock-in
+```json
+{
+  "pattern": "wave",
+  "color": "blue",
+  "speed": 0.1
+}
+```
 
 ***
 
-## Author
+### ✅ Health Check
 
-Owen Espitia  
+```http
+GET /health
+```
+
+***
+
+### ✅ Start Computer Vision
+
+```http
+POST /vision/start
+```
+
+***
+
+### ✅ Stop Computer Vision
+
+```http
+POST /vision/stop
+```
+
+***
+
+### ✅ Vision Status
+
+```http
+GET /vision/status
+```
+
+Returns:
+
+```json
+{
+  "available": true,
+  "running": true,
+  "state": "face"
+}
+```
+
+***
+
+### ✅ Live Camera Stream (MJPEG)
+
+```http
+GET /vision/stream
+```
+
+Open directly in a browser or embed as an `<img>` tag. Streams annotated frames with bounding boxes at the camera's native framerate.
+
+***
+
+## 🧪 Testing the System
+
+```bash
+curl -X POST http://<espitia_dev-ip>:5000/alert \
+-H "Content-Type: application/json" \
+-d '{"color":"red","pattern":"blink"}'
+```
+
+***
+
+## 🤖 Run on Boot (systemd)
+
+```bash
+sudo nano /etc/systemd/system/smartsignal.service
+```
+
+```ini
+[Unit]
+Description=SmartSignal HTTP Server
+After=network.target
+
+[Service]
+ExecStart=/home/espitia_dev/smartsignal/.venv/bin/python /home/espitia_dev/smartsignal/main.py
+WorkingDirectory=/home/espitia_dev/smartsignal
+Restart=always
+User=espitia_dev
+
+[Install]
+WantedBy=multi-user.target
+```
+
+***
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable smartsignal
+sudo systemctl start smartsignal
+```
+
+***
+
+## 🧪 Example Use Case
+
+1. MSU detects an intrusion
+2. System sends HTTP request
+3. SmartSignal activates:
+   * Red blinking strip
+   * High-visibility pattern
+4. Personnel immediately see alert
+
+***
+
+## ⚠️ Challenges and Considerations
+
+* Power consumption of LED strips at full brightness
+* Timing precision required for WS2812 signals
+* Network reliability (especially over LTE)
+* Securing HTTP endpoints
+* Outdoor enclosure durability
+
+***
+
+## 🛣️ Roadmap
+
+### ✅ MVP
+
+* HTTP control
+* WS2812 LED integration
+* Basic animation patterns
+* systemd auto-start
+
+### 🚀 Future Enhancements
+
+* Dashboard UI for live control
+* Pattern editor / animation builder
+* Secure API (authentication + HTTPS)
+* Remote config updates
+* Multi-device synchronization
+* More advanced CV models (YOLO, MediaPipe) for improved detection accuracy
+* Detection logging and event history
+
+***
+
+## 💡 Key Differentiators
+
+* Addressable LED animations (not just static LEDs)
+* Brokerless HTTP architecture
+* Highly visible, expressive alerts
+* Low cost, scalable, and extensible
+
+***
+
+## 👤 Author
+
+**Owen Espitia**  
 Neumont University
 
 ***
 
-## License
+## 📜 License
 
-MIT
+MIT License
 
 ***
 
-## Final Note
+## 🧠 Final Note
 
 SmartSignal is designed with a single objective:
 
-Make critical alerts immediately visible and impossible to miss.
+> **Make critical alerts immediately visible and impossible to miss.**
 
 ***
 
-### This README has been generated by Microsoft Copilot based on the Project Proposal for this Project.
+## ⭐ Notes for Reviewers
+
+This project demonstrates:
+
+* Embedded systems + real hardware integration
+* Addressable LED control (WS2812 timing + patterns)
+* REST API design
+* Real-time IoT systems
+* Practical system-level engineering
+
+***

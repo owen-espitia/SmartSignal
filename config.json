@@ -1,0 +1,33 @@
+{
+  "led": {
+    "count": 3,
+    "pin": 18,
+    "freq_hz": 800000,
+    "dma": 10,
+    "invert": false,
+    "brightness": 25,
+    "channel": 0
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false
+  },
+  "vision": {
+    "camera_index": 0,
+    "width": 640,
+    "height": 480,
+    "detect_every_n_frames": 3,
+    "debounce_frames": 5,
+    "auto_alert": true
+  },
+  "colors": {
+    "red":    [255,   0,   0],
+    "orange": [255, 100,   0],
+    "green":  [  0, 255,   0],
+    "blue":   [  0,   0, 255],
+    "white":  [100, 100, 100],
+    "yellow": [255, 200,   0],
+    "off":    [  0,   0,   0]
+  }
+}

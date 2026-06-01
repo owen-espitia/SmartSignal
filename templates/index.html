@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartSignal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --text: #e2e4ed;
+      --muted: #6b7280;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      max-width: 640px;
+      margin: 0 auto 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    h1 span { color: var(--accent); }
+
+    #status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+      margin-right: 6px;
+      transition: background 0.3s;
+    }
+    #status-dot.ok  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    #status-dot.err { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+    #status-label { font-size: 12px; color: var(--muted); }
+
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* color swatches */
+    .swatch-grid {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .swatch {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .swatch:hover    { transform: scale(1.15); }
+    .swatch.selected { border-color: white; }
+
+    /* pattern pills */
+    .pill-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .pill {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pill:hover    { background: var(--border); }
+    .pill.selected { background: var(--accent); border-color: var(--accent); }
+
+    /* sliders */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .slider-row label { width: 68px; color: var(--muted); font-size: 12px; flex-shrink: 0; }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .slider-row .val { width: 38px; text-align: right; font-size: 12px; color: var(--muted); }
+
+    /* rgb row */
+    .rgb-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .rgb-field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .rgb-field input[type="number"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 15px;
+      padding: 8px;
+      text-align: center;
+      outline: none;
+    }
+    .rgb-field input[type="number"]:focus { border-color: var(--accent); }
+
+    .rgb-preview {
+      height: 48px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+
+    /* buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-primary:hover:not(:disabled)  { background: var(--accent-hover); }
+    .btn-danger   { background: var(--danger);   color: #fff; }
+    .btn-danger:hover:not(:disabled)   { background: #f87171; }
+
+    .btn-row { display: flex; gap: 10px; align-items: center; }
+
+    /* toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 13px;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    #toast.err  { border-color: var(--danger); color: var(--danger); }
+    #toast.ok   { border-color: var(--success); color: var(--success); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Smart<span>Signal</span></h1>
+  <div>
+    <span id="status-dot"></span>
+    <span id="status-label">checking…</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Alert card -->
+  <div class="card">
+    <div class="card-title">Alert</div>
+
+    <div class="swatch-grid" id="alert-swatches"></div>
+
+    <div class="pill-group" id="alert-patterns"></div>
+
+    <div class="slider-row">
+      <label>Speed</label>
+      <input type="range" id="alert-speed" min="0.1" max="2" step="0.05" value="0.5" />
+      <span class="val" id="alert-speed-val">0.5</span>
+    </div>
+    <div class="slider-row">
+      <label>Duration</label>
+      <input type="range" id="alert-duration" min="0" max="120" step="5" value="0" />
+      <span class="val" id="alert-duration-val">∞</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="alert-btn">Trigger Alert</button>
+    </div>
+  </div>
+
+  <!-- RGB card -->
+  <div class="card">
+    <div class="card-title">Custom RGB</div>
+
+    <div class="rgb-preview" id="rgb-preview"></div>
+
+    <div class="rgb-inputs">
+      <div class="rgb-field">
+        <label>R</label>
+        <input type="number" id="rgb-r" min="0" max="255" value="255" />
+      </div>
+      <div class="rgb-field">
+        <label>G</label>
+        <input type="number" id="rgb-g" min="0" max="255" value="80" />
+      </div>
+      <div class="rgb-field">
+        <label>B</label>
+        <input type="number" id="rgb-b" min="0" max="255" value="0" />
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="rgb-btn">Set Color</button>
+    </div>
+  </div>
+
+  <!-- Pattern card -->
+  <div class="card">
+    <div class="card-title">Pattern</div>
+
+    <div class="swatch-grid" id="pattern-swatches"></div>
+
+    <div class="pill-group" id="pattern-pills"></div>
+
+    <div class="slider-row">
+      <label>Speed</label>
+      <input type="range" id="pattern-speed" min="0.1" max="2" step="0.05" value="0.5" />
+      <span class="val" id="pattern-speed-val">0.5</span>
+    </div>
+    <div class="slider-row">
+      <label>Duration</label>
+      <input type="range" id="pattern-duration" min="0" max="120" step="5" value="0" />
+      <span class="val" id="pattern-duration-val">∞</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="pattern-btn">Run Pattern</button>
+    </div>
+  </div>
+
+  <!-- Vision card -->
+  <div class="card">
+    <div class="card-title">Computer Vision</div>
+
+    <div id="vision-placeholder" style="height:180px; display:flex; align-items:center; justify-content:center; background:var(--bg); border:1px solid var(--border); border-radius:6px; margin-bottom:16px; color:var(--muted); font-size:13px;">
+      Camera off
+    </div>
+
+    <div id="vision-feed-wrap" style="display:none; margin-bottom:16px;">
+      <img id="vision-feed" src="" alt="Camera feed"
+           style="width:100%; border-radius:6px; border:1px solid var(--border); display:block;" />
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <span style="font-size:12px; color:var(--muted);">Detection:</span>
+      <span id="vision-state-badge"
+            style="font-size:12px; font-weight:600; padding:3px 12px; border-radius:12px; background:var(--border); color:var(--muted); transition:background 0.3s, color 0.3s;">
+        idle
+      </span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="vision-toggle-btn">Start Vision</button>
+    </div>
+  </div>
+
+  <!-- Off -->
+  <div class="card">
+    <div class="card-title">Power</div>
+    <button class="btn btn-danger" id="off-btn">Turn Off LEDs</button>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+  const COLORS = {
+    red:    [255,   0,   0],
+    orange: [255, 100,   0],
+    yellow: [255, 200,   0],
+    green:  [  0, 255,   0],
+    blue:   [  0,   0, 255],
+    white:  [255, 255, 255],
+  };
+
+  const PATTERNS = ["solid", "blink", "pulse", "wave", "strobe"];
+
+  // --- state ---
+  let alertColor   = "red";
+  let alertPattern = "blink";
+  let patColor     = "blue";
+  let patPattern   = "wave";
+
+  // --- health poll ---
+  const dot   = document.getElementById("status-dot");
+  const label = document.getElementById("status-label");
+
+  async function checkHealth() {
+    try {
+      const r = await fetch("/health");
+      const d = await r.json();
+      dot.className   = "ok";
+      label.textContent = `online · ${d.pixels} pixels`;
+    } catch {
+      dot.className   = "err";
+      label.textContent = "offline";
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 5000);
+
+  // --- build swatches ---
+  function buildSwatches(containerId, selected, onSelect) {
+    const el = document.getElementById(containerId);
+    Object.entries(COLORS).forEach(([name, [r, g, b]]) => {
+      const s = document.createElement("div");
+      s.className  = "swatch" + (name === selected ? " selected" : "");
+      s.title      = name;
+      s.style.background = `rgb(${r},${g},${b})`;
+      s.onclick = () => {
+        el.querySelectorAll(".swatch").forEach(x => x.classList.remove("selected"));
+        s.classList.add("selected");
+        onSelect(name);
+      };
+      el.appendChild(s);
+    });
+  }
+
+  // --- build pattern pills ---
+  function buildPills(containerId, selected, onSelect) {
+    const el = document.getElementById(containerId);
+    PATTERNS.forEach(p => {
+      const btn = document.createElement("button");
+      btn.className   = "pill" + (p === selected ? " selected" : "");
+      btn.textContent = p;
+      btn.onclick = () => {
+        el.querySelectorAll(".pill").forEach(x => x.classList.remove("selected"));
+        btn.classList.add("selected");
+        onSelect(p);
+      };
+      el.appendChild(btn);
+    });
+  }
+
+  buildSwatches("alert-swatches",  alertColor,   v => alertColor   = v);
+  buildSwatches("pattern-swatches", patColor,    v => patColor     = v);
+  buildPills("alert-patterns",  alertPattern, v => alertPattern = v);
+  buildPills("pattern-pills",   patPattern,   v => patPattern   = v);
+
+  // --- sliders ---
+  function wireSlider(inputId, labelId, fmt) {
+    const inp = document.getElementById(inputId);
+    const lbl = document.getElementById(labelId);
+    lbl.textContent = fmt(inp.value);
+    inp.addEventListener("input", () => lbl.textContent = fmt(inp.value));
+    return inp;
+  }
+
+  const durationFmt = v => +v === 0 ? "∞" : `${v}s`;
+
+  wireSlider("alert-speed",     "alert-speed-val",     v => (+v).toFixed(2));
+  wireSlider("alert-duration",  "alert-duration-val",  durationFmt);
+  wireSlider("pattern-speed",   "pattern-speed-val",   v => (+v).toFixed(2));
+  wireSlider("pattern-duration","pattern-duration-val", durationFmt);
+
+  // --- RGB preview ---
+  function updatePreview() {
+    const r = clamp(document.getElementById("rgb-r").value);
+    const g = clamp(document.getElementById("rgb-g").value);
+    const b = clamp(document.getElementById("rgb-b").value);
+    document.getElementById("rgb-preview").style.background = `rgb(${r},${g},${b})`;
+  }
+  function clamp(v) { return Math.max(0, Math.min(255, parseInt(v) || 0)); }
+
+  ["rgb-r","rgb-g","rgb-b"].forEach(id =>
+    document.getElementById(id).addEventListener("input", updatePreview)
+  );
+  updatePreview();
+
+  // --- API calls ---
+  async function post(path, body) {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return r.json();
+  }
+
+  function toast(msg, ok = true) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className   = "show " + (ok ? "ok" : "err");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.className = "", 2500);
+  }
+
+  document.getElementById("alert-btn").onclick = async () => {
+    const duration = +document.getElementById("alert-duration").value || null;
+    const speed    = +document.getElementById("alert-speed").value;
+    try {
+      const d = await post("/alert", { color: alertColor, pattern: alertPattern, duration, speed });
+      toast(d.error ? d.error : `${alertPattern} · ${alertColor}`, !d.error);
+    } catch { toast("Request failed", false); }
+  };
+
+  document.getElementById("rgb-btn").onclick = async () => {
+    const r = clamp(document.getElementById("rgb-r").value);
+    const g = clamp(document.getElementById("rgb-g").value);
+    const b = clamp(document.getElementById("rgb-b").value);
+    try {
+      const d = await post("/rgb", { r, g, b });
+      toast(d.error ? d.error : `rgb(${r}, ${g}, ${b})`, !d.error);
+    } catch { toast("Request failed", false); }
+  };
+
+  document.getElementById("pattern-btn").onclick = async () => {
+    const duration = +document.getElementById("pattern-duration").value || null;
+    const speed    = +document.getElementById("pattern-speed").value;
+    try {
+      const d = await post("/pattern", { pattern: patPattern, color: patColor, speed, duration });
+      toast(d.error ? d.error : `${patPattern} · ${patColor}`, !d.error);
+    } catch { toast("Request failed", false); }
+  };
+
+  document.getElementById("off-btn").onclick = async () => {
+    try {
+      await post("/off", {});
+      toast("LEDs off");
+    } catch { toast("Request failed", false); }
+  };
+
+  // --- Vision ---
+  const BADGE_STYLES = {
+    idle:   { bg: "var(--border)", color: "var(--muted)" },
+    person: { bg: "#166534",       color: "#4ade80" },
+    face:   { bg: "#7f1d1d",       color: "#f87171" },
+  };
+
+  let visionRunning   = false;
+  let visionPollTimer = null;
+
+  const visionPlaceholder = document.getElementById("vision-placeholder");
+  const visionFeedWrap    = document.getElementById("vision-feed-wrap");
+  const visionFeed        = document.getElementById("vision-feed");
+  const visionBadge       = document.getElementById("vision-state-badge");
+  const visionToggleBtn   = document.getElementById("vision-toggle-btn");
+
+  function setVisionBadge(state) {
+    const s = BADGE_STYLES[state] || BADGE_STYLES.idle;
+    visionBadge.textContent        = state;
+    visionBadge.style.background   = s.bg;
+    visionBadge.style.color        = s.color;
+  }
+
+  function setVisionUI(running) {
+    visionRunning = running;
+    visionToggleBtn.textContent = running ? "Stop Vision" : "Start Vision";
+    if (running) {
+      visionFeed.src                  = "/vision/stream";
+      visionFeedWrap.style.display    = "block";
+      visionPlaceholder.style.display = "none";
+      visionPollTimer = setInterval(async () => {
+        try {
+          const d = await (await fetch("/vision/status")).json();
+          setVisionBadge(d.state);
+          if (!d.running) setVisionUI(false);
+        } catch {}
+      }, 1000);
+    } else {
+      visionFeed.src                  = "";
+      visionFeedWrap.style.display    = "none";
+      visionPlaceholder.style.display = "flex";
+      clearInterval(visionPollTimer);
+      setVisionBadge("idle");
+    }
+  }
+
+  visionToggleBtn.onclick = async () => {
+    try {
+      if (!visionRunning) {
+        const d = await post("/vision/start", {});
+        if (d.error) { toast(d.error, false); return; }
+        setVisionUI(true);
+        toast("Vision started");
+      } else {
+        await post("/vision/stop", {});
+        setVisionUI(false);
+        toast("Vision stopped");
+      }
+    } catch { toast("Request failed", false); }
+  };
+</script>
+
+</body>
+</html>
