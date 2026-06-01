@@ -68,12 +68,11 @@ SmartSignal drives a connected camera to detect **people** and determine whether
 
 ### How it works
 
-* **Person detection** — OpenCV HOG + SVM descriptor (`HOGDescriptor_getDefaultPeopleDetector()`)
-* **Hat detection** — for each detected person, the top 35% of their bounding box (head region) is cropped and run through an OpenCV Haar face cascade. If the face sits in the top 30% of that crop (minimal clearance above), there is no room for a hat — the person is flagged as `no_hat`. No additional model downloads required.
-* Detection runs every 3rd frame (configurable) to stay responsive on a Raspberry Pi
-* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections
-* Bounding boxes are annotated `"person"` (yellow) or `"no hat!"` (red) per-person in the live feed
-* An annotated **MJPEG live stream** is served at `/vision/stream` and embedded directly in the web UI
+* **Detection** — YOLOv8 runs on the laptop, not the Pi. The Pi only receives HTTP alerts and drives the LEDs.
+* Pass any YOLO weights file via `--model`. The default (`yolov8n.pt`) downloads automatically on first run. For best hat detection accuracy, use a model fine-tuned on PPE data (hard hat detection datasets are widely available on Roboflow).
+* The client maps detected class names to states using a configurable set — common PPE model label variants (`hardhat`, `hard_hat`, `helmet`, `no-hardhat`, `no_hardhat`, etc.) are all handled out of the box.
+* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections.
+* Bounding boxes are annotated per-detection: yellow for hat worn, red for no hat.
 
 ### Configuration (`config.json`)
 
@@ -97,7 +96,7 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 * 🌐 HTTP-based control (REST API)
 * 🎛️ Addressable LED strip (WS2812 / NeoPixel)
 * 🎨 Per-pixel color and animation support
-* 👁️ Computer vision: real-time person detection and hat compliance checking via OpenCV
+* 👁️ Computer vision: real-time hat compliance detection via YOLOv8 (runs on laptop, alerts forwarded to Pi)
 * 📹 Live annotated MJPEG camera stream in the web UI
 * ⚡ Runs automatically at boot using `systemd`
 * 🔁 Auto-restarts on failure
@@ -149,13 +148,14 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 
 ```
 .
-├── main.py                # HTTP server entry point
-├── led_controller.py      # WS2812 LED control logic
-├── patterns.py            # Animation patterns (blink, pulse, wave)
-├── vision.py              # Computer vision: person detection and hat compliance
-├── config.json            # Configurable settings
-├── requirements.txt       # Dependencies
-├── smartsignal.service    # systemd service file
+├── main.py                  # Pi HTTP server — LED control only
+├── led_controller.py        # WS2812 LED control logic
+├── patterns.py              # Animation patterns (blink, pulse, wave)
+├── client.py                # Laptop vision client — YOLOv8 inference → Pi alerts
+├── config.json              # Pi server settings (LED hardware, colors)
+├── requirements.txt         # Pi dependencies (Flask only)
+├── requirements-client.txt  # Laptop dependencies (OpenCV, ultralytics, requests)
+├── smartsignal.service      # systemd service file
 └── README.md
 ```
 
@@ -255,7 +255,7 @@ sudo systemctl status smartsignal
 
 ### 5. Laptop Client — Hat Detection
 
-The laptop client runs person and hat detection on your local webcam and forwards alerts to the Pi over HTTP.
+All inference runs on the laptop. The Pi never touches a camera — it only receives HTTP alerts and drives the LEDs.
 
 Install client dependencies (on your laptop, not the Pi):
 
@@ -269,38 +269,17 @@ Run the client, pointing it at your Pi:
 python client.py --pi http://<pi-ip>:5000
 ```
 
-Optional flags:
+All flags:
 
 ```
---pi      Base URL of the Pi server (default: http://smartsignal.local:5000)
---camera  Local camera index to use   (default: 0)
+--pi      Base URL of the Pi server    (default: http://smartsignal.local:5000)
+--camera  Local camera index           (default: 0)
+--model   Path to YOLO weights file    (default: yolov8n.pt)
 ```
 
-A camera preview window will open. Press **Q** to quit — the LEDs will be cleared automatically on exit.
+`yolov8n.pt` downloads automatically on first run. For better hat detection accuracy, supply a YOLO model fine-tuned on PPE/hard hat data via `--model path/to/weights.pt`.
 
-***
-
-### 6. Enable Vision on the Pi (optional)
-
-If a camera is attached directly to the Pi, you can start vision detection via the API:
-
-```bash
-curl -X POST http://<pi-ip>:5000/vision/start
-```
-
-View the live annotated stream in a browser:
-
-```
-http://<pi-ip>:5000/vision/stream
-```
-
-Stop detection:
-
-```bash
-curl -X POST http://<pi-ip>:5000/vision/stop
-```
-
-Set `"auto_alert": false` in `config.json` to watch the stream without triggering the LEDs.
+A camera preview window will open with bounding boxes annotated per detection. Press **Q** to quit — the LEDs are cleared automatically on exit.
 
 ***
 
