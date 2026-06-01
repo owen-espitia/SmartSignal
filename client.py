@@ -23,14 +23,14 @@ DEBOUNCE     = 5   # consecutive frames required before a state change fires
 
 STATE_IDLE   = "idle"
 STATE_PERSON = "person"
-STATE_FACE   = "face"
+STATE_NO_HAT = "no_hat"
 
-_FACE_COLOR   = (0, 200, 255)
-_PERSON_COLOR = (50, 255, 50)
+_NO_HAT_COLOR = (0, 0, 255)
+_PERSON_COLOR = (0, 255, 255)
 _STATE_COLORS = {
     STATE_IDLE:   (150, 150, 150),
     STATE_PERSON: _PERSON_COLOR,
-    STATE_FACE:   _FACE_COLOR,
+    STATE_NO_HAT: _NO_HAT_COLOR,
 }
 
 # ---------------------------------------------------------------------------
@@ -45,10 +45,10 @@ def _post(pi_url: str, path: str, body: dict) -> None:
 
 
 def send_alert(pi_url: str, state: str) -> None:
-    if state == STATE_FACE:
+    if state == STATE_NO_HAT:
         _post(pi_url, "/alert", {"color": "red",    "pattern": "blink", "speed": 0.3})
     elif state == STATE_PERSON:
-        _post(pi_url, "/alert", {"color": "orange", "pattern": "pulse", "speed": 0.5})
+        _post(pi_url, "/alert", {"color": "yellow", "pattern": "pulse", "speed": 0.5})
     else:
         _post(pi_url, "/off", {})
 
@@ -80,12 +80,12 @@ def run(pi_url: str, camera_index: int) -> None:
     print(f"Camera {camera_index} open. Sending alerts to {pi_url}")
     print("Press Q in the camera window to quit.")
 
-    state           = STATE_IDLE
-    candidate       = STATE_IDLE
-    candidate_count = 0
-    frame_n         = 0
-    faces: list     = []
-    people: list    = []
+    state                  = STATE_IDLE
+    candidate              = STATE_IDLE
+    candidate_count        = 0
+    frame_n                = 0
+    people: list           = []
+    people_hat_status: list = []
 
     while True:
         ok, frame = cap.read()
@@ -96,23 +96,31 @@ def run(pi_url: str, camera_index: int) -> None:
         frame_n += 1
 
         if frame_n % DETECT_EVERY == 0:
-            gray   = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces  = face_cascade.detectMultiScale(
-                gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40)
-            )
             people, _ = hog.detectMultiScale(
                 frame, winStride=(8, 8), padding=(4, 4), scale=1.05
             )
+            people_hat_status = []
+            for (px, py, pw, ph) in people:
+                head_h = max(1, int(ph * 0.35))
+                head_roi = frame[py:py + head_h, px:px + pw]
+                has_hat = True
+                if head_roi.size > 0:
+                    gray_head = cv2.cvtColor(head_roi, cv2.COLOR_BGR2GRAY)
+                    head_faces = face_cascade.detectMultiScale(
+                        gray_head, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15)
+                    )
+                    if len(head_faces) > 0 and head_faces[0][1] < int(head_h * 0.3):
+                        has_hat = False
+                people_hat_status.append(has_hat)
 
         # Annotate bounding boxes
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), _FACE_COLOR, 2)
-            cv2.putText(frame, "face", (x, y - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, _FACE_COLOR, 1)
-        for (x, y, w, h) in people:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), _PERSON_COLOR, 2)
-            cv2.putText(frame, "person", (x, y - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, _PERSON_COLOR, 1)
+        for i, (x, y, w, h) in enumerate(people):
+            has_hat = people_hat_status[i] if i < len(people_hat_status) else True
+            color = _PERSON_COLOR if has_hat else _NO_HAT_COLOR
+            label = "person" if has_hat else "no hat!"
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+            cv2.putText(frame, label, (x, y - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
         # State + Pi URL overlay
         cv2.putText(frame, f"state: {state}", (8, 22),
@@ -122,8 +130,10 @@ def run(pi_url: str, camera_index: int) -> None:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 100, 100), 1)
 
         # Debounced state machine
-        new_state = STATE_FACE if len(faces) > 0 else (
-                    STATE_PERSON if len(people) > 0 else STATE_IDLE)
+        no_hat_detected = any(not has_hat for has_hat in people_hat_status)
+        new_state = (STATE_NO_HAT if no_hat_detected else
+                     STATE_PERSON if len(people) > 0 else
+                     STATE_IDLE)
 
         if new_state == candidate:
             candidate_count += 1

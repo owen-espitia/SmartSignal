@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, render_template, Response
 
 from led_controller import LEDController
 from patterns import PatternRunner
-from vision import VisionDetector, STATE_IDLE, STATE_PERSON, STATE_FACE
+from vision import VisionDetector, STATE_IDLE, STATE_PERSON, STATE_NO_HAT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,10 +36,10 @@ def resolve_color(name: str) -> tuple[int, int, int]:
 def _on_vision_state(state: str) -> None:
     if not config.get("vision", {}).get("auto_alert", True):
         return
-    if state == STATE_FACE:
+    if state == STATE_NO_HAT:
         runner.run("blink", resolve_color("red"), speed=0.3)
     elif state == STATE_PERSON:
-        runner.run("pulse", resolve_color("orange"), speed=0.5)
+        runner.run("pulse", resolve_color("yellow"), speed=0.5)
     elif state == STATE_IDLE:
         runner.stop()
 
