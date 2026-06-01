@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 
 import cv2
@@ -60,6 +61,20 @@ def send_alert(pi_url: str, state: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
+def _load_model(model_path: str) -> YOLO:
+    # If it looks like a HuggingFace repo ID (contains '/' but isn't a local path),
+    # download the weights via huggingface_hub then load locally.
+    if "/" in model_path and not os.path.exists(model_path):
+        from huggingface_hub import hf_hub_download
+        print(f"Downloading model from Hugging Face Hub: {model_path}")
+        model_path = hf_hub_download(repo_id=model_path, filename="best.pt")
+    return YOLO(model_path)
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -72,7 +87,7 @@ def run(pi_url: str, camera_index: int, model_path: str) -> None:
         print(f"[warn] Could not reach Pi at {pi_url}: {e}")
         print("Continuing anyway — alerts will retry each detection event.")
 
-    model = YOLO(model_path)
+    model = _load_model(model_path)
     print(f"Model loaded: {model_path}")
     print(f"Classes: {list(model.names.values())}")
 
