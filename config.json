@@ -5,7 +5,7 @@
     "freq_hz": 800000,
     "dma": 10,
     "invert": false,
-    "brightness": 25,
+    "brightness": 10,
     "channel": 0
   },
   "server": {

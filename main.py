@@ -1,13 +1,11 @@
 import json
 import logging
-import time
 from pathlib import Path
 
-from flask import Flask, request, jsonify, render_template, Response
+from flask import Flask, request, jsonify, render_template
 
 from led_controller import LEDController
 from patterns import PatternRunner
-from vision import VisionDetector, STATE_IDLE, STATE_PERSON, STATE_NO_HAT
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,20 +29,6 @@ VALID_PATTERNS = {"solid", "blink", "pulse", "wave", "strobe"}
 
 def resolve_color(name: str) -> tuple[int, int, int]:
     return NAMED_COLORS.get(name.lower(), (255, 255, 255))
-
-
-def _on_vision_state(state: str) -> None:
-    if not config.get("vision", {}).get("auto_alert", True):
-        return
-    if state == STATE_NO_HAT:
-        runner.run("blink", resolve_color("red"), speed=0.3)
-    elif state == STATE_PERSON:
-        runner.run("pulse", resolve_color("yellow"), speed=0.5)
-    elif state == STATE_IDLE:
-        runner.stop()
-
-
-vision = VisionDetector(config, _on_vision_state)
 
 
 # ---------------------------------------------------------------------------
@@ -134,48 +118,6 @@ def off():
     runner.stop()
     logger.info("LEDs turned off")
     return jsonify({"status": "ok"})
-
-
-@app.route("/vision/start", methods=["POST"])
-def vision_start():
-    if not vision.available:
-        return jsonify({"error": "opencv-python is not installed"}), 503
-    vision.start()
-    return jsonify({"status": "ok", "running": vision.is_running()})
-
-
-@app.route("/vision/stop", methods=["POST"])
-def vision_stop():
-    vision.stop()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/vision/status", methods=["GET"])
-def vision_status():
-    return jsonify({
-        "available": vision.available,
-        "running":   vision.is_running(),
-        "state":     vision.state,
-    })
-
-
-@app.route("/vision/stream")
-def vision_stream():
-    if not vision.is_running():
-        return jsonify({"error": "Vision is not running"}), 400
-
-    def generate():
-        while vision.is_running():
-            frame = vision.get_frame()
-            if frame is None:
-                time.sleep(0.05)
-                continue
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-            )
-
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 # ---------------------------------------------------------------------------

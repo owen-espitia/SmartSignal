@@ -47,32 +47,32 @@ All controlled via a simple **RESTful HTTP API**, with no message broker require
 
 ## 🎨 LED Alert System
 
-| Color     | Meaning                    | Pattern Example   |
-| --------- | -------------------------- | ----------------- |
-| 🔴 Red    | Critical alert (intrusion) | Blinking / strobe |
-| 🟠 Orange | Warning (PPE violation)    | Pulse             |
-| 🟢 Green  | Normal operation           | Solid             |
-| 🔵 Blue   | System diagnostics         | Slow wave         |
+| Color     | Meaning                        | Pattern Example   |
+| --------- | ------------------------------ | ----------------- |
+| 🔴 Red    | Person detected without a hat  | Blinking          |
+| 🟡 Yellow | Person detected (hat worn)     | Pulse             |
+| 🟢 Green  | Normal operation               | Solid             |
+| 🔵 Blue   | System diagnostics             | Slow wave         |
 
 ***
 
 ## 👁️ Computer Vision
 
-SmartSignal can drive a connected camera to detect **people** and **faces** in real time, automatically triggering the appropriate LED alert when something is detected.
+SmartSignal drives a connected camera to detect **people** and determine whether they are wearing a hat, automatically triggering the appropriate LED alert.
 
-| Detection | LED Response         |
-| --------- | -------------------- |
-| Face      | 🔴 Red blink         |
-| Person    | 🟠 Orange pulse      |
-| Nothing   | LEDs off             |
+| Detection              | LED Response         |
+| ---------------------- | -------------------- |
+| Person — no hat        | 🔴 Red blink         |
+| Person — hat worn      | 🟡 Yellow pulse      |
+| Nothing detected       | LEDs off             |
 
 ### How it works
 
-* **Face detection** — OpenCV Haar cascade classifier (`haarcascade_frontalface_default.xml`), bundled with OpenCV, no extra downloads required
-* **Person detection** — OpenCV HOG + SVM descriptor (`HOGDescriptor_getDefaultPeopleDetector()`)
-* Detection runs every 3rd frame (configurable) to stay responsive on a Raspberry Pi
-* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections
-* An annotated **MJPEG live stream** (bounding boxes + state label) is served at `/vision/stream` and embedded directly in the web UI
+* **Detection** — YOLOv8 runs on the laptop, not the Pi. The Pi only receives HTTP alerts and drives the LEDs.
+* The default model is `keremberke/yolov8m-hard-hat-detection` (Hugging Face), which downloads automatically on first run. A PPE-specific model is required — the base COCO models do not have hat classes.
+* The client maps detected class names to states using a configurable set — common PPE model label variants (`hardhat`, `hard_hat`, `helmet`, `no-hardhat`, `no_hardhat`, etc.) are all handled out of the box.
+* State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections.
+* Bounding boxes are annotated per-detection: yellow for hat worn, red for no hat.
 
 ### Configuration (`config.json`)
 
@@ -96,7 +96,7 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 * 🌐 HTTP-based control (REST API)
 * 🎛️ Addressable LED strip (WS2812 / NeoPixel)
 * 🎨 Per-pixel color and animation support
-* 👁️ Computer vision: real-time face and person detection via OpenCV
+* 👁️ Computer vision: real-time hat compliance detection via YOLOv8 (runs on laptop, alerts forwarded to Pi)
 * 📹 Live annotated MJPEG camera stream in the web UI
 * ⚡ Runs automatically at boot using `systemd`
 * 🔁 Auto-restarts on failure
@@ -148,13 +148,14 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 
 ```
 .
-├── main.py                # HTTP server entry point
-├── led_controller.py      # WS2812 LED control logic
-├── patterns.py            # Animation patterns (blink, pulse, wave)
-├── vision.py              # Computer vision: face and person detection
-├── config.json            # Configurable settings
-├── requirements.txt       # Dependencies
-├── smartsignal.service    # systemd service file
+├── main.py                  # Pi HTTP server — LED control only
+├── led_controller.py        # WS2812 LED control logic
+├── patterns.py              # Animation patterns (blink, pulse, wave)
+├── client.py                # Laptop vision client — YOLOv8 inference → Pi alerts
+├── config.json              # Pi server settings (LED hardware, colors)
+├── requirements.txt         # Pi dependencies (Flask only)
+├── requirements-client.txt  # Laptop dependencies (OpenCV, ultralytics, requests)
+├── smartsignal.service      # systemd service file
 └── README.md
 ```
 
@@ -185,41 +186,100 @@ Set `auto_alert` to `false` to watch the camera feed without triggering the LEDs
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/smartsignal.git
-cd smartsignal
+git clone https://github.com/owen-espitia/SmartSignal.git
+cd SmartSignal
 ```
 
 ***
 
-### 2. Install Dependencies
+### 2. Raspberry Pi — Server Setup
+
+Install system dependencies and create a virtual environment:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip
-pip3 install -r requirements.txt
+sudo apt install python3 python3-pip python3-venv
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Example `requirements.txt`:
+Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+To enable hardware LED control on the Pi, uncomment the `rpi_ws281x` line in `requirements.txt` before installing:
 
 ```
-flask
-rpi_ws281x
-adafruit-circuitpython-neopixel
+# rpi_ws281x>=5.0.0
 ```
 
 ***
 
-### 3. Run the Application
+### 3. Run the Pi Server
 
 ```bash
-python3 main.py
+source .venv/bin/activate
+sudo .venv/bin/python main.py
 ```
 
-Default server:
+> `sudo` is required for GPIO access. The server starts at `http://<pi-ip>:5000`.
+
+Open the web UI in a browser to control alerts manually:
 
 ```
-http://<espitia_dev-ip>:5000
+http://<pi-ip>:5000
 ```
+
+***
+
+### 4. Run as a Service (auto-start on boot)
+
+Copy the service file and enable it:
+
+```bash
+sudo cp smartsignal.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable smartsignal
+sudo systemctl start smartsignal
+```
+
+Check status:
+
+```bash
+sudo systemctl status smartsignal
+```
+
+***
+
+### 5. Laptop Client — Hat Detection
+
+All inference runs on the laptop. The Pi never touches a camera — it only receives HTTP alerts and drives the LEDs.
+
+Install client dependencies (on your laptop, not the Pi):
+
+```bash
+pip install -r requirements-client.txt
+```
+
+Run the client, pointing it at your Pi:
+
+```bash
+python client.py --pi http://<pi-ip>:5000
+```
+
+All flags:
+
+```
+--pi      Base URL of the Pi server    (default: http://smartsignal.local:5000)
+--camera  Local camera index           (default: 0)
+--model   Path to YOLO weights file    (default: yolov8n.pt)
+```
+
+The default model (`keremberke/yolov8m-hard-hat-detection`) downloads from Hugging Face automatically on first run — no manual setup needed. You can swap in any other YOLO PPE model via `--model`.
+
+A camera preview window will open with bounding boxes annotated per detection. Press **Q** to quit — the LEDs are cleared automatically on exit.
 
 ***
 
@@ -311,7 +371,7 @@ Returns:
 {
   "available": true,
   "running": true,
-  "state": "face"
+  "state": "no_hat"
 }
 ```
 

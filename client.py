@@ -1,11 +1,11 @@
 """SmartSignal laptop client.
 
-Runs face and person detection on the local webcam and forwards
-alert signals to a SmartSignal Pi server over HTTP.
+Runs person and hat detection using YOLOv8 and forwards alert signals
+to a SmartSignal Pi server over HTTP.
 
 Usage:
     python client.py --pi http://<pi-ip>:5000
-    python client.py --pi http://<pi-ip>:5000 --camera 1
+    python client.py --pi http://<pi-ip>:5000 --camera 1 --model path/to/weights.pt
 """
 
 import argparse
@@ -13,20 +13,26 @@ import sys
 
 import cv2
 import requests
+from ultralytics import YOLO
 
 # ---------------------------------------------------------------------------
 # Detection config
 # ---------------------------------------------------------------------------
 
-DETECT_EVERY = 3   # run detection every N frames (keeps CPU reasonable)
-DEBOUNCE     = 5   # consecutive frames required before a state change fires
+DEBOUNCE = 5  # consecutive frames required before a state change fires
 
 STATE_IDLE   = "idle"
 STATE_PERSON = "person"
 STATE_NO_HAT = "no_hat"
 
-_NO_HAT_COLOR = (0, 0, 255)
-_PERSON_COLOR = (0, 255, 255)
+# Class names the model may use — covers common PPE model naming conventions.
+# Adjust if your model uses different labels.
+_HAT_CLASSES    = {"hardhat", "hard_hat", "helmet", "hard-hat"}
+_NO_HAT_CLASSES = {"no-hardhat", "no_hardhat", "no-helmet", "head"}
+_PERSON_CLASSES = {"person"}
+
+_NO_HAT_COLOR = (0, 0, 255)    # red   (BGR)
+_PERSON_COLOR = (0, 255, 255)  # yellow (BGR)
 _STATE_COLORS = {
     STATE_IDLE:   (150, 150, 150),
     STATE_PERSON: _PERSON_COLOR,
@@ -57,8 +63,7 @@ def send_alert(pi_url: str, state: str) -> None:
 # Main loop
 # ---------------------------------------------------------------------------
 
-def run(pi_url: str, camera_index: int) -> None:
-    # Verify Pi is reachable before starting the camera
+def run(pi_url: str, camera_index: int, model_path: str) -> None:
     try:
         r = requests.get(pi_url + "/health", timeout=3)
         d = r.json()
@@ -67,11 +72,9 @@ def run(pi_url: str, camera_index: int) -> None:
         print(f"[warn] Could not reach Pi at {pi_url}: {e}")
         print("Continuing anyway — alerts will retry each detection event.")
 
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    )
-    hog = cv2.HOGDescriptor()
-    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+    model = YOLO(model_path)
+    print(f"Model loaded: {model_path}")
+    print(f"Classes: {list(model.names.values())}")
 
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
@@ -80,12 +83,9 @@ def run(pi_url: str, camera_index: int) -> None:
     print(f"Camera {camera_index} open. Sending alerts to {pi_url}")
     print("Press Q in the camera window to quit.")
 
-    state                  = STATE_IDLE
-    candidate              = STATE_IDLE
-    candidate_count        = 0
-    frame_n                = 0
-    people: list           = []
-    people_hat_status: list = []
+    state           = STATE_IDLE
+    candidate       = STATE_IDLE
+    candidate_count = 0
 
     while True:
         ok, frame = cap.read()
@@ -93,48 +93,43 @@ def run(pi_url: str, camera_index: int) -> None:
             print("[error] Camera read failed — exiting")
             break
 
-        frame_n += 1
+        results = model(frame, verbose=False)[0]
 
-        if frame_n % DETECT_EVERY == 0:
-            people, _ = hog.detectMultiScale(
-                frame, winStride=(8, 8), padding=(4, 4), scale=1.05
-            )
-            people_hat_status = []
-            for (px, py, pw, ph) in people:
-                head_h = max(1, int(ph * 0.35))
-                head_roi = frame[py:py + head_h, px:px + pw]
-                has_hat = True
-                if head_roi.size > 0:
-                    gray_head = cv2.cvtColor(head_roi, cv2.COLOR_BGR2GRAY)
-                    head_faces = face_cascade.detectMultiScale(
-                        gray_head, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15)
-                    )
-                    if len(head_faces) > 0 and head_faces[0][1] < int(head_h * 0.3):
-                        has_hat = False
-                people_hat_status.append(has_hat)
+        detected_classes: set[str] = set()
+        for box in results.boxes:
+            cls_name = model.names[int(box.cls)].lower()
+            detected_classes.add(cls_name)
 
-        # Annotate bounding boxes
-        for i, (x, y, w, h) in enumerate(people):
-            has_hat = people_hat_status[i] if i < len(people_hat_status) else True
-            color = _PERSON_COLOR if has_hat else _NO_HAT_COLOR
-            label = "person" if has_hat else "no hat!"
-            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
-            cv2.putText(frame, label, (x, y - 6),
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            conf = float(box.conf[0])
+
+            if cls_name in _NO_HAT_CLASSES:
+                color, label = _NO_HAT_COLOR, f"no hat {conf:.0%}"
+            elif cls_name in _HAT_CLASSES:
+                color, label = _PERSON_COLOR, f"hat {conf:.0%}"
+            else:
+                color, label = (180, 180, 180), f"{cls_name} {conf:.0%}"
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, label, (x1, y1 - 6),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-        # State + Pi URL overlay
+        # State overlay
         cv2.putText(frame, f"state: {state}", (8, 22),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65,
                     _STATE_COLORS.get(state, (150, 150, 150)), 2)
         cv2.putText(frame, f"pi: {pi_url}", (8, frame.shape[0] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 100, 100), 1)
 
-        # Debounced state machine
-        no_hat_detected = any(not has_hat for has_hat in people_hat_status)
-        new_state = (STATE_NO_HAT if no_hat_detected else
-                     STATE_PERSON if len(people) > 0 else
-                     STATE_IDLE)
+        # Determine new state — no_hat takes priority over person
+        if detected_classes & _NO_HAT_CLASSES:
+            new_state = STATE_NO_HAT
+        elif detected_classes & (_PERSON_CLASSES | _HAT_CLASSES):
+            new_state = STATE_PERSON
+        else:
+            new_state = STATE_IDLE
 
+        # Debounce
         if new_state == candidate:
             candidate_count += 1
         else:
@@ -171,5 +166,9 @@ if __name__ == "__main__":
         "--camera", type=int, default=0,
         help="Local camera index to use (default: 0)"
     )
+    parser.add_argument(
+        "--model", default="keremberke/yolov8m-hard-hat-detection",
+        help="YOLO model weights path or Hugging Face repo (default: keremberke/yolov8m-hard-hat-detection)"
+    )
     args = parser.parse_args()
-    run(args.pi, args.camera)
+    run(args.pi, args.camera, args.model)
