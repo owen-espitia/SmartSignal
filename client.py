@@ -167,8 +167,8 @@ if __name__ == "__main__":
         help="Local camera index to use (default: 0)"
     )
     parser.add_argument(
-        "--model", default="yolov8n.pt",
-        help="Path to YOLO model weights (default: yolov8n.pt — downloads automatically on first run)"
+        "--model", default="keremberke/yolov8m-hard-hat-detection",
+        help="YOLO model weights path or Hugging Face repo (default: keremberke/yolov8m-hard-hat-detection)"
     )
     args = parser.parse_args()
     run(args.pi, args.camera, args.model)

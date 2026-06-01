@@ -69,7 +69,7 @@ SmartSignal drives a connected camera to detect **people** and determine whether
 ### How it works
 
 * **Detection** — YOLOv8 runs on the laptop, not the Pi. The Pi only receives HTTP alerts and drives the LEDs.
-* Pass any YOLO weights file via `--model`. The default (`yolov8n.pt`) downloads automatically on first run. For best hat detection accuracy, use a model fine-tuned on PPE data (hard hat detection datasets are widely available on Roboflow).
+* The default model is `keremberke/yolov8m-hard-hat-detection` (Hugging Face), which downloads automatically on first run. A PPE-specific model is required — the base COCO models do not have hat classes.
 * The client maps detected class names to states using a configurable set — common PPE model label variants (`hardhat`, `hard_hat`, `helmet`, `no-hardhat`, `no_hardhat`, etc.) are all handled out of the box.
 * State changes are **debounced** over 5 consecutive frames to prevent LED flicker from single bad detections.
 * Bounding boxes are annotated per-detection: yellow for hat worn, red for no hat.
@@ -277,7 +277,7 @@ All flags:
 --model   Path to YOLO weights file    (default: yolov8n.pt)
 ```
 
-`yolov8n.pt` downloads automatically on first run. For better hat detection accuracy, supply a YOLO model fine-tuned on PPE/hard hat data via `--model path/to/weights.pt`.
+The default model (`keremberke/yolov8m-hard-hat-detection`) downloads from Hugging Face automatically on first run — no manual setup needed. You can swap in any other YOLO PPE model via `--model`.
 
 A camera preview window will open with bounding boxes annotated per detection. Press **Q** to quit — the LEDs are cleared automatically on exit.
 
