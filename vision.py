@@ -15,11 +15,11 @@ except ImportError:
 
 STATE_IDLE   = "idle"
 STATE_PERSON = "person"
-STATE_FACE   = "face"
+STATE_NO_HAT = "no_hat"
 
 # BGR colors for on-frame annotations
-_FACE_COLOR   = (0, 200, 255)   # yellow-ish
-_PERSON_COLOR = (50, 255, 50)   # green
+_NO_HAT_COLOR = (0, 0, 255)    # red
+_PERSON_COLOR = (0, 255, 255)  # yellow
 
 
 class VisionDetector:
@@ -118,8 +118,8 @@ class VisionDetector:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
 
         frame_n = 0
-        faces: list = []
         people: list = []
+        people_hat_status: list = []
 
         while not self._stop_event.is_set():
             ok, frame = cap.read()
@@ -131,37 +131,46 @@ class VisionDetector:
 
             # Run detection every N frames to keep the loop fast on a Pi
             if frame_n % self._detect_every == 0:
-                gray   = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                faces  = self._face_cascade.detectMultiScale(
-                    gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40)
-                )
                 people, _ = self._hog.detectMultiScale(
                     frame, winStride=(8, 8), padding=(4, 4), scale=1.05
                 )
+                people_hat_status = []
+                for (px, py, pw, ph) in people:
+                    head_h = max(1, int(ph * 0.35))
+                    head_roi = frame[py:py + head_h, px:px + pw]
+                    has_hat = True
+                    if head_roi.size > 0:
+                        gray_head = cv2.cvtColor(head_roi, cv2.COLOR_BGR2GRAY)
+                        head_faces = self._face_cascade.detectMultiScale(
+                            gray_head, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15)
+                        )
+                        if len(head_faces) > 0 and head_faces[0][1] < int(head_h * 0.3):
+                            has_hat = False
+                    people_hat_status.append(has_hat)
 
             # Annotate bounding boxes
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), _FACE_COLOR, 2)
-                cv2.putText(frame, "face", (x, y - 6),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, _FACE_COLOR, 1)
-            for (x, y, w, h) in people:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), _PERSON_COLOR, 2)
-                cv2.putText(frame, "person", (x, y - 6),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, _PERSON_COLOR, 1)
+            for i, (x, y, w, h) in enumerate(people):
+                has_hat = people_hat_status[i] if i < len(people_hat_status) else True
+                color = _PERSON_COLOR if has_hat else _NO_HAT_COLOR
+                label = "person" if has_hat else "no hat!"
+                cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+                cv2.putText(frame, label, (x, y - 6),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
             # State overlay (top-left)
             state_color = {
                 STATE_IDLE:   (150, 150, 150),
                 STATE_PERSON: _PERSON_COLOR,
-                STATE_FACE:   _FACE_COLOR,
+                STATE_NO_HAT: _NO_HAT_COLOR,
             }
             cv2.putText(frame, self._state, (8, 22),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.65,
                         state_color.get(self._state, (150, 150, 150)), 2)
 
             # Drive state machine
-            if len(faces) > 0:
-                new_state = STATE_FACE
+            no_hat_detected = any(not has_hat for has_hat in people_hat_status)
+            if no_hat_detected:
+                new_state = STATE_NO_HAT
             elif len(people) > 0:
                 new_state = STATE_PERSON
             else:
