@@ -7,7 +7,6 @@ ExecStart=/home/espitia_dev/smartsignal/.venv/bin/python /home/espitia_dev/smart
 WorkingDirectory=/home/espitia_dev/smartsignal
 Restart=always
 RestartSec=5
-User=espitia_dev
 
 [Install]
 WantedBy=multi-user.target
