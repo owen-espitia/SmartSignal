@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main.py)",
+      "Bash(curl -s http://localhost:5000/health)",
+      "Bash(curl -s -X POST http://localhost:5000/alert -H \"Content-Type: application/json\" -d \"{\\\\\"color\\\\\":\\\\\"red\\\\\",\\\\\"pattern\\\\\":\\\\\"blink\\\\\",\\\\\"duration\\\\\":2}\")",
+      "Bash(curl -s -X POST http://localhost:5000/rgb -H \"Content-Type: application/json\" -d \"{\\\\\"r\\\\\":0,\\\\\"g\\\\\":255,\\\\\"b\\\\\":100}\")",
+      "Bash(curl -s -X POST http://localhost:5000/pattern -H \"Content-Type: application/json\" -d \"{\\\\\"pattern\\\\\":\\\\\"wave\\\\\",\\\\\"color\\\\\":\\\\\"blue\\\\\",\\\\\"speed\\\\\":0.2}\")",
+      "Bash(pip install *)",
+      "Bash(Start-Process python *)",
+      "Bash(Out-Null)",
+      "Bash(Start-Sleep 2)",
+      "Bash(Invoke-RestMethod -Uri http://localhost:5000/health)",
+      "Bash(Invoke-RestMethod -Uri http://localhost:5000/alert -Method POST -ContentType \"application/json\" -Body '{\"color\":\"red\",\"pattern\":\"blink\",\"duration\":2}')",
+      "Bash(Invoke-RestMethod -Uri http://localhost:5000/rgb -Method POST -ContentType \"application/json\" -Body '{\"r\":0,\"g\":255,\"b\":100}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(git *)"
+    ]
+  }
+}
