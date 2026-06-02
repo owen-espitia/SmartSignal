@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 
 import cv2
@@ -32,7 +33,7 @@ _NO_HAT_CLASSES = {"no-hardhat", "no_hardhat", "no-helmet", "head"}
 _PERSON_CLASSES = {"person"}
 
 _NO_HAT_COLOR = (0, 0, 255)    # red   (BGR)
-_PERSON_COLOR = (0, 255, 255)  # yellow (BGR)
+_PERSON_COLOR = (0, 255, 0)  # yellow (BGR)
 _STATE_COLORS = {
     STATE_IDLE:   (150, 150, 150),
     STATE_PERSON: _PERSON_COLOR,
@@ -60,6 +61,20 @@ def send_alert(pi_url: str, state: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
+def _load_model(model_path: str) -> YOLO:
+    # If it looks like a HuggingFace repo ID (contains '/' but isn't a local path),
+    # download the weights via huggingface_hub then load locally.
+    if "/" in model_path and not os.path.exists(model_path):
+        from huggingface_hub import hf_hub_download
+        print(f"Downloading model from Hugging Face Hub: {model_path}")
+        model_path = hf_hub_download(repo_id=model_path, filename="best.pt")
+    return YOLO(model_path)
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -72,7 +87,7 @@ def run(pi_url: str, camera_index: int, model_path: str) -> None:
         print(f"[warn] Could not reach Pi at {pi_url}: {e}")
         print("Continuing anyway — alerts will retry each detection event.")
 
-    model = YOLO(model_path)
+    model = _load_model(model_path)
     print(f"Model loaded: {model_path}")
     print(f"Classes: {list(model.names.values())}")
 
