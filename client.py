@@ -33,7 +33,7 @@ _NO_HAT_CLASSES = {"no-hardhat", "no_hardhat", "no-helmet", "head"}
 _PERSON_CLASSES = {"person"}
 
 _NO_HAT_COLOR = (0, 0, 255)    # red   (BGR)
-_PERSON_COLOR = (0, 255, 255)  # yellow (BGR)
+_PERSON_COLOR = (0, 255, 0)  # yellow (BGR)
 _STATE_COLORS = {
     STATE_IDLE:   (150, 150, 150),
     STATE_PERSON: _PERSON_COLOR,

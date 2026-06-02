@@ -38,7 +38,7 @@ except ImportError:
             logger.debug("[MOCK] setBrightness(%d)", brightness)
 
 
-MAX_BRIGHTNESS = 25  # 20% of 255 — hard ceiling enforced regardless of config
+MAX_BRIGHTNESS = 2  # 20% of 255 — hard ceiling enforced regardless of config
 
 
 class LEDController:
